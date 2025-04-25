@@ -1,0 +1,47 @@
+# 依賴包
+node_modules/
+package-lock.json
+yarn.lock
+
+# 環境變數
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# 日誌
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 系統檔案
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+
+# 編輯器目錄和檔案
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# 建構輸出
+dist/
+build/
+out/
+.nyc_output/
+coverage/
+
+# 暫存檔案
+tmp/
+temp/ 
