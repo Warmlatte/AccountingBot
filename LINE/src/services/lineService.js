@@ -157,6 +157,61 @@ const getMessageContent = (messageId) => {
 };
 
 /**
+ * 獲取用戶資料
+ * @param {string} userId - 用戶 ID
+ * @returns {Promise<Object>} - 返回用戶資料
+ */
+const getUserProfile = (userId) => {
+  return new Promise((resolve, reject) => {
+    if (!userId) {
+      reject("用戶ID不能為空");
+      return;
+    }
+
+    const headers = {
+      Authorization: `Bearer ${config.lineChannelAccessToken}`,
+    };
+
+    // 設定獲取用戶資料請求
+    const options = {
+      hostname: "api.line.me",
+      path: `/v2/bot/profile/${userId}`,
+      method: "GET",
+      headers: headers,
+    };
+
+    const req = https.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+
+      res.on("end", () => {
+        if (res.statusCode === 200) {
+          try {
+            const profileData = JSON.parse(data);
+            resolve(profileData);
+          } catch (error) {
+            console.error("解析用戶資料失敗:", error);
+            reject(`解析用戶資料失敗: ${error.message}`);
+          }
+        } else {
+          console.error(`獲取用戶資料失敗: ${res.statusCode}, ${data}`);
+          reject(`獲取用戶資料失敗: ${res.statusCode}, ${data}`);
+        }
+      });
+    });
+
+    req.on("error", (err) => {
+      console.error("❌ 獲取用戶資料失敗：", err);
+      reject(`獲取用戶資料失敗: ${err.message}`);
+    });
+
+    req.end();
+  });
+};
+
+/**
  * 檢查使用者是否已回覆過
  * @param {string} userId - 使用者 ID
  * @returns {boolean} - 是否已回覆過
@@ -177,6 +232,7 @@ export default {
   replyMessage,
   pushMessage,
   getMessageContent,
+  getUserProfile,
   hasRepliedToUser,
   markUserAsReplied,
 };

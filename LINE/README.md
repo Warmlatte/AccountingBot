@@ -19,7 +19,7 @@
 - **textController.js**：處理文字訊息
 - **stickerController.js**：處理貼圖訊息
 - **imageController.js**：處理圖片訊息，將圖片發送到 n8n
-- **invoiceController.js**：處理發票相關功能
+- **invoiceController.js**：處理發票相關功能，包括分類與儲存
 
 ## 環境設置
 
@@ -33,8 +33,9 @@ PORT=8080
 LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token
 LINE_CHANNEL_SECRET=your_line_channel_secret
 
-# n8n OCR 服務
-N8N_ENDPOINT=https://your-n8n-server/webhook/ocr
+# n8n 服務 - 基礎URL
+# 系統會自動添加 /ocrWebhook 與 /saveWebhook 端點
+N8N_ENDPOINT=https://your-n8n-server
 ```
 
 2. 安裝依賴：
@@ -52,10 +53,13 @@ npm start
 ## 工作流程
 
 1. 用戶發送發票圖片到 LINE Bot
-2. LINE Bot 將圖片和相關參數（reply_token, user_id 等）轉發到 n8n
+2. LINE Bot 將圖片和相關參數（reply_token, user_id 等）轉發到 n8n 的 /ocrWebhook
 3. n8n 執行 OCR 處理並獲取發票資訊（發票號碼、日期、金額等）
 4. n8n 將結果回傳到 LINE Bot API 端點
-5. LINE Bot 將結果回覆給用戶
+5. LINE Bot 顯示辨識結果並讓用戶確認/修改資訊
+6. 用戶選擇消費分類
+7. LINE Bot 將最終資料傳送到 n8n 的 /saveWebhook 進行儲存
+8. n8n 處理儲存並回傳成功訊息
 
 ## API 端點
 
@@ -78,34 +82,44 @@ npm start
   - `imageUrl`：圖片網址
   - `use_flex`：是否使用 Flex Message (布林值，預設 false)
 - **描述**：接收 OCR 結果並回覆用戶
-- **回覆方式**：
-  - 如果提供 `reply_token` 且 `use_flex` 為 false，使用文字回覆
-  - 如果提供 `user_id`，使用 Flex Message 回覆
+
+### 記帳結果通知
+
+- **路徑**：`/notifySavedResult`
+- **方法**：POST
+- **參數**：
+  - `user_id`：用戶 ID
+  - `category`：消費分類
+  - `amount`：金額
+  - `date`：日期
+  - `imageUrl`：圖片網址（可選）
+  - `success`：操作是否成功（預設true）
+  - `message`：失敗時的錯誤訊息（可選）
+- **描述**：接收保存結果通知並回覆用戶
 
 ## n8n 設置說明
 
-在 n8n 的工作流程中，您應該：
+在 n8n 中，您需要設置兩個 Webhook 節點：
+
+### 1. OCR Webhook (/ocrWebhook)
 
 1. 使用 Webhook 節點接收來自 LINE Bot 的圖片
 2. 執行 OCR 處理獲取發票資訊
 3. 將結果回傳到 LINE Bot 的 API 端點：
    - 發送 POST 請求到 `https://your-server.com/receiveOcrData`
-   - 如果希望使用簡單文字回覆，包含 `reply_token` 參數
-   - 如果希望使用 Flex Message，包含 `user_id` 參數
+   - 包含 `user_id` 等參數
+   
+### 2. Save Webhook (/saveWebhook)
 
-### POST 請求範例
+1. 使用 Webhook 節點接收來自 LINE Bot 的確認後資料
+2. 處理圖片存檔和資料存儲
+3. 將結果回傳到 LINE Bot 的通知端點：
+   - 發送 POST 請求到 `https://your-server.com/notifySavedResult`
+   - 包含 `user_id`、`category` 等參數
 
-使用文字回覆：
-```json
-{
-  "reply_token": "從LINE獲取的reply_token",
-  "invoiceNumber": "AB12345678",
-  "date": "2023/09/15",
-  "amount": "123"
-}
-```
+### 請求範例
 
-使用 Flex Message 回覆：
+OCR結果回傳：
 ```json
 {
   "user_id": "U1234567890abcdef",
@@ -113,5 +127,17 @@ npm start
   "date": "2023/09/15",
   "amount": "123",
   "imageUrl": "https://example.com/receipt.jpg"
+}
+```
+
+保存結果回傳：
+```json
+{
+  "user_id": "U1234567890abcdef",
+  "category": "餐飲",
+  "amount": "123",
+  "date": "2023/09/15",
+  "imageUrl": "https://example.com/receipt.jpg",
+  "success": true
 }
 ```

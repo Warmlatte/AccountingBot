@@ -3,19 +3,34 @@ import axios from "axios";
 import FormData from "form-data";
 import config from "../config/index.js";
 
-// 從配置中獲取 n8nEndpoint
-const n8nEndpoint = config.n8nEndpoint;
+// 從配置中獲取 n8nOcrWebhook
+const n8nOcrWebhook = config.n8nOcrWebhook;
+
+/**
+ * 清理字串形式的null值，統一轉換為空字串
+ * @param {string} value - 輸入值
+ * @param {string} defaultValue - 默認值，如果輸入為null/undefined/"null"，返回此值
+ * @returns {string} 清理後的值
+ */
+const cleanValue = (value, defaultValue = "") => {
+  if (
+    value === null ||
+    value === undefined ||
+    value === "null" ||
+    value === "undefined"
+  ) {
+    return defaultValue;
+  }
+  return value;
+};
 
 /**
  * 處理圖片訊息 - 只負責接收圖片並轉發到 n8n
  */
 const handleImageMessage = async (event) => {
   try {
-    console.log(`開始處理圖片訊息，用戶ID: ${event.source.userId}`);
-
     // 1. 獲取圖片數據
     const { buffer, userId } = await getImageData(event);
-    console.log(`圖片已下載，大小: ${buffer.length} bytes`);
 
     // 2. 轉發到 n8n
     await sendToN8n(buffer, userId, event.replyToken);
@@ -64,9 +79,9 @@ const getImageData = async (event) => {
  * 發送圖片到 n8n
  */
 const sendToN8n = async (buffer, userId, replyToken) => {
-  // 檢查 n8n 端點是否設置
-  if (!n8nEndpoint) {
-    throw new Error("未設置 N8N_ENDPOINT 環境變數");
+  // 檢查 n8n OCR 端點是否設置
+  if (!n8nOcrWebhook) {
+    throw new Error("未設置 N8N_ENDPOINT 環境變數或 n8nOcrWebhook 未配置");
   }
 
   // 建立表單數據
@@ -75,19 +90,33 @@ const sendToN8n = async (buffer, userId, replyToken) => {
     filename: "receipt.jpg",
     contentType: "image/jpeg",
   });
-  form.append("user_id", userId);
-  form.append("reply_token", replyToken);
+  form.append("user_id", cleanValue(userId));
+  form.append("reply_token", cleanValue(replyToken));
   form.append("platform", "LINE");
 
-  // 發送到 n8n
-  console.log(`發送圖片到 n8n: ${n8nEndpoint}`);
-  const response = await axios.post(n8nEndpoint, form, {
-    headers: form.getHeaders(),
-    timeout: 10000, // 10秒超時
-  });
-
-  console.log(`圖片已發送到 n8n，狀態: ${response.status}`);
-  return response.status;
+  try {
+    const response = await axios.post(n8nOcrWebhook, form, {
+      headers: form.getHeaders(),
+      timeout: 30000, // 30秒超時，增加處理大圖片的時間
+    });
+    return response.status;
+  } catch (error) {
+    if (error.response) {
+      // 伺服器返回了錯誤狀態碼
+      console.error(
+        `伺服器錯誤 (${error.response.status}): ${JSON.stringify(
+          error.response.data
+        )}`
+      );
+    } else if (error.request) {
+      // 沒有收到回應
+      console.error("沒有收到n8n回應，請檢查連接或n8n伺服器是否運行");
+    } else {
+      // 請求設置時發生錯誤
+      console.error("發送請求時發生錯誤:", error.message);
+    }
+    throw error;
+  }
 };
 
 export default {
