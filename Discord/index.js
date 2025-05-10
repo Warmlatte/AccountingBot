@@ -1,11 +1,10 @@
-import { Client, Events, GatewayIntentBits } from "discord.js";
+import { Client, GatewayIntentBits } from "discord.js";
 import dotenv from "dotenv";
 
-// 載入事件
-
+// 載入環境變數
 dotenv.config();
 
-// Create a new client instance
+// 建立 Discord 客戶端實例
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -16,12 +15,17 @@ const client = new Client({
   ],
 });
 
-// 啟用功能
+// 載入所有事件
+import { loadEvents } from "./utils/eventLoader.js";
+(async () => {
+  await loadEvents(client);
+})();
 
-// 當機器人準備好時的事件
-client.once(Events.ClientReady, (readyClient) => {
-  console.log(`✅ Bot 已啟動，登入為：${readyClient.user.tag}`);
-});
-
-// Log in to Discord with your client's token
+// 登入 Discord
 client.login(process.env.DISCORD_TOKEN);
+
+// 導出 client 供其他模組使用
+export { client };
+
+// 載入 webhook server
+import "./webhookServer.js";
